@@ -1,0 +1,285 @@
+---
+title: "Lab 4"
+author: "Hanbo Li"
+date: "January 26, 2016"
+output: pdf_document
+---
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+
+---
+Description of data
+** Time : # of hours played in the week prior to survey
+** Like to play : 1=never played, 2=very much, 3=somewhat, 4=not really, 5=not at all.
+** Where play : 1=arcade, 2=home system, 3=home computer, 4=arcade and either
+home computer of system, 5= home computer and system, 6=all three.
+** How often : 1=daily, 2=weekly, 3=monthly, 4=semesterly.
+** Play if busy : 1=yes, 0=no.
+** Playing educational : 1=yes, 0=no.
+** Sex : 1=male, 0=female.
+** Age : Students age in years.
+** Computer at home : 1=yes, 0=no.
+** Hate math: 1=yes, 0=no.
+** Work: # of hours worked the week prior to the survey.
+** Own PC : 1=yes, 0=no.
+** PS has CD-Rom: 1=yes, 0=no.
+** Have email : 1=yes, 0=no.
+** Grade expected : 4=A,3=B,2=C,1=D,0=F.
+---
+
+
+sampling in R:
+
+sample(x, size, replace, prob)
+```{r, echo=FALSE}
+par(mfrow=c(1,2))
+
+sample(10)
+sample(10, replace=TRUE)
+
+data <- rnorm(300, 5, 3)
+plot(density(data))
+sample(data, 10, replace=TRUE)
+
+```
+
+
+bootstrap
+```{r}
+install.packages("Lock5Data",repos="http://cran.us.r-project.org")
+library(Lock5Data)
+data(CommuteAtlanta)
+str(CommuteAtlanta)
+```
+
+Task: Construct the confidence interval for the mean commute time in Atlanta.
+
+step 1: Estimate mean.
+```{r}
+time.mean = mean(CommuteAtlanta$Time)
+time.mean
+```
+
+step 2: To find the standard error, we will use bootstrap method. We store each bootstrap sample as a row of a matrix. For example, in this case,
+the number of data in CommuteAtlanta$Time is 500. For each time, we sample with replacement 500 data to form a bootstrap sample, and we 
+repeat this for 1000 times, i.e. we get totally 1000 bootstrap samples.
+```{r}
+B = 1000 # the number of bootstrap samples we want
+n = nrow(CommuteAtlanta) # how many data we have, or we can use
+n = length(CommuteAtlanta$Time)
+boot.samples = matrix(sample(CommuteAtlanta$Time, size = B * n, replace = TRUE), B, n)
+```
+
+Then for each bootstrap sample (i.e. each row of the matrix above), we find its mean by using apply() function in R. This function is very useful.
+```{r}
+boot.mean = apply(boot.samples, 1, mean) # 1 means applying to each row. 2 means applying to each column.
+head(boot.mean)
+
+hist(boot.mean, breaks = 50, freq=TRUE) # show frequency
+hist(boot.mean, breaks = 50, freq=FALSE) # show density
+plot(density(boot.mean), main="density of bootstrap sample means")
+
+# put these two plots together. Don't use plot(), use lines() instead.
+hist(boot.mean, breaks = 50, freq=FALSE)
+lines(density(boot.mean), col="red")
+lines(density(boot.mean, adjust=2), col="blue") # smooth the density
+
+# another way to do it: ggplot!
+install.packages("ggplot2", repos="http://cran.us.r-project.org")
+require(ggplot2)
+ggplot(data.frame(meanTime = boot.mean),aes(x=meanTime)) +
+geom_histogram(binwidth=0.25,aes(y=..density..)) +
+geom_density(color="red")
+```
+
+Finally, standard error for the bootstrap means!
+```{r}
+time.se = sd(boot.mean)
+time.se
+```
+
+
+step 3: Now we have mean, we have the se of means, we can construct the confidence interval.
+```{r}
+me = 1.96*time.se
+time.mean + c(-1, 1) * me
+```
+Therefore, we are 95% confident that the mean commute time in Atlanta among commuters who do not work at home is in the interval from 27.3 to 30.9 minutes.
+
+The accuracy of this inference depends on the original sample being representative from the population of interest.
+
+
+
+
+
+Now, let look at the data for HW 2.
+
+```{r}
+videodata <- read.table("videodata.txt", header=TRUE) # read the first line as header
+head(videodata)
+names(videodata)
+dim(videodata)
+n = dim(videodata)[1]
+```
+
+
+Let's look at the proportion of females in the data.
+```{r}
+male_num <- sum(videodata$sex)
+female_num <- sum(!videodata$sex)
+
+female_proportion <- female_num/n
+female_proportion
+```
+
+By lecture notes, we know the estimate of standard error of female proportion is se = 0.044. (See page 36 and page 43.)
+```{r}
+x_bar <- female_proportion
+n = nrow(videodata)
+N = 314
+se_estimator <- sqrt(x_bar*(1-x_bar)/(n-1))*sqrt((N-n)/N)
+se_estimator
+```
+
+Let us use bootstrap to verify. (Bootstrap for survey: First create a bootstrap population, then draw w/o replacement from this population.)
+```{r}
+N = 314
+B = 1000
+n = nrow(videodata)
+
+# bootstrap population
+boot.population = sample(videodata$sex, size=N, replace=TRUE)
+
+# draw from bootstrap population
+boot.samples = matrix(sample(boot.population, size = B * n, replace = TRUE), B, n)
+
+# Now 1 means male and 0 means female. For convenience, let's change 1 to mean female.
+boot.samples = !boot.samples
+boot.mean = apply(boot.samples, 1, mean)
+head(boot.mean)
+
+hist(boot.mean, breaks = 50, freq=TRUE) # show frequency
+hist(boot.mean, breaks = 50, freq=FALSE) # show density
+plot(density(boot.mean), main="density of bootstrap sample means")
+
+# put these two plots together. Don't use plot(), use lines() instead.
+hist(boot.mean, breaks = 50, freq=FALSE)
+lines(density(boot.mean), col="red")
+lines(density(boot.mean, adjust=2), col="blue") # smooth the density
+
+female.se = sd(boot.mean)
+female.se
+
+qqnorm(boot.mean)
+qqline(boot.mean)
+```
+se = 0.051
+
+Note that: two methods are equivalent.
+Drawing 314 bootstrap samples w/ replacement from 91 data, then draw 91 samples w/o replacement from these 314 samples
+is equivalent to (under expectation)
+drawing 91 bootstrap samples w/ replacement from 91 data.
+
+
+
+
+Time spent on videogames
+```{r}
+time <- videodata$time
+hist(time, breaks=20, freq=FALSE)
+lines(density(time), col="red")
+```
+(Lecture note, page 45)
+From the histogram of the time spent playing video games by the students in the sample, we see that the sample distribution is extremely skewed.
+
+This observation raises a question of whether the probability distribution of the sample average follows normal curve.
+
+```{r}
+time_avg <- mean(time)
+time_avg
+```
+
+Again, bootstrap!
+```{r}
+B = 1000
+n = nrow(videodata)
+boot.samples = matrix(sample(time, size = B * n, replace = TRUE), B, n)
+boot.mean = apply(boot.samples, 1, mean)
+head(boot.mean)
+
+hist(boot.mean, breaks = 50, freq=FALSE)
+lines(density(boot.mean), col="red")
+lines(density(boot.mean, adjust=2), col="blue") # smooth the density
+```
+
+Not that normal.
+Let's compare the density with normal density with the same mean and sd.
+```{r}
+mu <- mean(boot.mean)
+sigma <- sd(boot.mean)
+normal <- rnorm(5000,mu,sigma)
+plot(density(normal, adjust=2), col="blue")
+lines(density(boot.mean, adjust=2), col="red")
+```
+
+Q-Q plot
+```{r}
+# What does the Q-Q plot look like if the variables are normal?
+qqnorm(normal)
+qqline(normal)
+# compare
+qqnorm(boot.mean)
+qqline(boot.mean)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Bonus: Some other tricks for bootstrap sampling.
+
+with replacement
+```{r}
+resamples1 <- lapply(1:20, function(i)
+sample(data, replace = TRUE))
+resamples1[1]
+plot(density(resamples1[[1]]))
+```
+
+without replacement
+```{r}
+resamples2 <- lapply(1:20, function(i)
+sample(data, 100, replace = FALSE))
+resamples2[1]
+plot(density(resamples2[[1]]))
+```
+
+
+
+
+
+
+
+
+
+
+
+
